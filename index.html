@@ -8,23 +8,34 @@
 
 <style>
 body{margin:0;font-family:Arial;background:#06111f;color:white}
-header{text-align:center;background:#0b1d35;padding:16px}
+header{text-align:center;background:#0b1d35;padding:14px}
 h1{margin:0;color:#00e5ff;font-size:24px}
 .sub{color:#7cffc4;font-size:13px}
 .status{text-align:center;color:#ffd54f;padding:10px;font-weight:bold}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;padding:12px}
-.card{background:#102642;border-radius:16px;padding:12px}
-.device{display:flex;justify-content:space-between;align-items:center;background:#07192d;margin:8px 0;padding:10px;border-radius:12px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:12px;padding:12px}
+.card{background:#102642;border-radius:12px;padding:12px;min-height:150px}
+.card h2{margin:0 0 12px;font-size:20px}
+.device{display:flex;justify-content:space-between;align-items:center;background:#07192d;margin:8px 0;padding:10px;border-radius:10px;gap:8px}
+.device span{line-height:1.25}
 button{border:0;border-radius:20px;padding:8px 16px;color:white;font-weight:bold;cursor:pointer}
 .on{background:#00c853}
 .off{background:#d50000}
 .blue{background:#2962ff}
-.master{text-align:center;padding:12px}
+.amber{background:#ff8f00}
+.master{text-align:center;padding:10px}
 .cameraBox{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 .cameraBox input{flex:1;min-width:170px;border:0;border-radius:8px;padding:9px;background:#07192d;color:white}
 .cameraBox button{border-radius:8px}
-.cameraFrame{width:100%;aspect-ratio:4/3;background:#07192d;border:0;border-radius:8px;object-fit:cover}
+.cameraFrame{width:100%;height:92px;background:#07192d;border:0;border-radius:8px;object-fit:cover}
 .hint{color:#7cffc4;font-size:12px;margin:6px 0 0}
+.sceneGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.sceneGrid button{border-radius:10px;padding:10px 8px}
+.metric{display:flex;justify-content:space-between;align-items:center;background:#07192d;margin:8px 0;padding:10px;border-radius:10px}
+.metric b{color:#7cffc4}
+.note{background:#07192d;border-radius:10px;padding:10px;margin:8px 0;color:#d6f7ff;font-size:13px;line-height:1.35}
+.contact{font-size:20px;color:#00e5ff;font-weight:bold;letter-spacing:0}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(240px,1fr))}}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.cameraFrame{height:150px}}
 </style>
 </head>
 
@@ -55,7 +66,37 @@ button{border:0;border-radius:20px;padding:8px 16px;color:white;font-weight:bold
 <button class="off" onclick="stopCamera()">STOP</button>
 </div>
 <img id="camView" class="cameraFrame" alt="ESP32-CAM stream">
-<p class="hint">If stream is blocked on GitHub HTTPS, press OPEN.</p>
+<p class="hint" id="camStatus">If stream is blocked on GitHub HTTPS, press OPEN.</p>
+</div>
+
+<div class="card">
+<h2>Quick Scenes</h2>
+<div class="sceneGrid">
+<button class="blue" onclick="sceneEvening()">EVENING</button>
+<button class="amber" onclick="sceneNight()">NIGHT</button>
+<button class="blue" onclick="sceneChildStudy()">CHILD STUDY</button>
+<button class="off" onclick="sceneAway()">AWAY</button>
+</div>
+<p class="hint">Scene buttons publish normal MQTT relay commands.</p>
+</div>
+
+<div class="card">
+<h2>Live Feedback</h2>
+<div class="metric"><span>Relays ON</span><b id="onCount">0 / 8</b></div>
+<div class="metric"><span>Last Action</span><b id="lastAction">Waiting</b></div>
+<div class="metric"><span>Control</span><b>GLOBAL MQTT</b></div>
+</div>
+
+<div class="card">
+<h2>Camera / Network</h2>
+<div class="note">Camera IP: <b>192.168.1.6</b><br>Stream: <b>:81/stream</b></div>
+<div class="note">GitHub HTTPS may block inline local camera preview. OPEN button is best for camera.</div>
+</div>
+
+<div class="card">
+<h2>Support</h2>
+<div class="note">HAJARE ELECTRONICS<br><span class="contact">8800466063</span></div>
+<div class="note">Suggestion: keep relay ESP32 and ESP32-CAM on static IP for stable home automation.</div>
 </div>
 </div>
 
@@ -118,17 +159,58 @@ function setUI(i,state){
  let b=document.getElementById("b"+i);
  b.innerText=state;
  b.className=state=="ON" ? "on" : "off";
+ updateFeedback();
 }
 
 function toggle(i){
  let next = states[i]=="ON" ? "OFF" : "ON";
  client.publish(topics[i] + "/set", next, {retain:true});
+ lastAction.innerText = names[i].split("/")[0] + " " + next;
 }
 
 function allRelay(cmd){
  for(let i=0;i<8;i++){
    client.publish(topics[i] + "/set", cmd, {retain:true});
  }
+ lastAction.innerText = "ALL " + cmd;
+}
+
+function relayCmd(i, cmd){
+ client.publish(topics[i] + "/set", cmd, {retain:true});
+}
+
+function sceneEvening(){
+ relayCmd(0, "ON");
+ relayCmd(3, "ON");
+ relayCmd(6, "ON");
+ relayCmd(5, "ON");
+ lastAction.innerText = "EVENING";
+}
+
+function sceneNight(){
+ allRelay("OFF");
+ setTimeout(function(){ relayCmd(6, "ON"); }, 350);
+ lastAction.innerText = "NIGHT";
+}
+
+function sceneChildStudy(){
+ relayCmd(1, "ON");
+ relayCmd(7, "ON");
+ relayCmd(6, "ON");
+ lastAction.innerText = "CHILD STUDY";
+}
+
+function sceneAway(){
+ allRelay("OFF");
+ lastAction.innerText = "AWAY";
+}
+
+function updateFeedback(){
+ let count = 0;
+ for(let i=0;i<8;i++){
+   if(states[i] == "ON") count++;
+ }
+ onCount.innerText = count + " / 8";
 }
 
 function getCameraUrl(){
@@ -155,16 +237,27 @@ function getInitialCameraUrl(){
 
 function loadCamera(){
  let url = getCameraUrl();
- if(url) camView.src = url;
+ if(!url) return;
+ if(location.protocol === "https:" && url.startsWith("http://")){
+   camStatus.innerText = "HTTPS page blocks inline HTTP camera. Opening camera tab...";
+   window.open(url, "_blank");
+   return;
+ }
+ camStatus.innerText = "Loading camera...";
+ camView.src = url;
 }
 
 function openCamera(){
  let url = getCameraUrl();
- if(url) window.open(url, "_blank");
+ if(url) {
+   camStatus.innerText = "Camera opened in new tab.";
+   window.open(url, "_blank");
+ }
 }
 
 function stopCamera(){
  camView.removeAttribute("src");
+ camStatus.innerText = "Camera stopped.";
 }
 
 function connectMQTT(){
@@ -178,6 +271,7 @@ function connectMQTT(){
 
  client.on("connect", function(){
    document.getElementById("sys").innerText = "MQTT: CONNECTED | GLOBAL CONTROL ACTIVE";
+   lastAction.innerText = "MQTT CONNECTED";
 
    for(let i=0;i<8;i++){
      client.subscribe(topics[i] + "/status");
@@ -187,14 +281,17 @@ function connectMQTT(){
 
  client.on("reconnect", function(){
    document.getElementById("sys").innerText = "MQTT: Reconnecting...";
+   lastAction.innerText = "Reconnecting";
  });
 
  client.on("offline", function(){
    document.getElementById("sys").innerText = "MQTT: Offline";
+   lastAction.innerText = "Offline";
  });
 
  client.on("error", function(){
    document.getElementById("sys").innerText = "MQTT: Error";
+   lastAction.innerText = "MQTT Error";
  });
 
  client.on("message", function(topic, message){
