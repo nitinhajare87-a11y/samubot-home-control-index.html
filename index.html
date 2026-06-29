@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAMUBOT AI Assistant Home Control</title>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<style>
+body{margin:0;font-family:Arial;background:#06111f;color:white}
+header{text-align:center;background:#0b1d35;padding:16px}
+h1{margin:0;color:#00e5ff;font-size:24px}
+.sub{color:#7cffc4;font-size:13px}
+.status{text-align:center;color:#ffd54f;padding:10px;font-weight:bold}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;padding:12px}
+.card{background:#102642;border-radius:16px;padding:12px}
+.device{display:flex;justify-content:space-between;align-items:center;background:#07192d;margin:8px 0;padding:10px;border-radius:12px}
+button{border:0;border-radius:20px;padding:8px 16px;color:white;font-weight:bold;cursor:pointer}
+.on{background:#00c853}
+.off{background:#d50000}
+.blue{background:#2962ff}
+.master{text-align:center;padding:12px}
+.cameraBox{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.cameraBox input{flex:1;min-width:170px;border:0;border-radius:8px;padding:9px;background:#07192d;color:white}
+.cameraBox button{border-radius:8px}
+.cameraFrame{width:100%;aspect-ratio:4/3;background:#07192d;border:0;border-radius:8px;object-fit:cover}
+.hint{color:#7cffc4;font-size:12px;margin:6px 0 0}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>SAMUBOT AI ASSISTANT</h1>
+<div class="sub">HAJARE Electronics Home Control Global Dashboard</div>
+</header>
+
+<div class="status" id="sys">MQTT: Connecting...</div>
+
+<div class="master">
+<button class="blue" onclick="allRelay('ON')">ALL ON</button>
+<button class="blue" onclick="allRelay('OFF')">ALL OFF</button>
+</div>
+
+<div class="grid">
+<div class="card"><h2>Room Relays</h2><div id="living"></div></div>
+<div class="card"><h2>Kitchen / Master</h2><div id="kitchen"></div></div>
+<div class="card"><h2>TV / Passage / Child</h2><div id="bath"></div></div>
+<div class="card">
+<h2>Camera</h2>
+<div class="cameraBox">
+<input id="camUrl" value="http://192.168.1.6:81/stream">
+<button class="blue" onclick="loadCamera()">LOAD</button>
+<button class="blue" onclick="openCamera()">OPEN</button>
+<button class="off" onclick="stopCamera()">STOP</button>
+</div>
+<img id="camView" class="cameraFrame" alt="ESP32-CAM stream">
+<p class="hint">If stream is blocked on GitHub HTTPS, press OPEN.</p>
+</div>
+</div>
+
+<script>
+const MQTT_HOST = "wss://431f345fb6a84bfa856a4d34568a46aa.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_USER = "nhajare1987";
+const MQTT_PASS = "Army@7387";
+
+const topics = [
+"home/living_room",
+"home/child_bedroom/socket_lamp",
+"home/spare/connection",
+"home/kitchen/fridge_lamp",
+"home/master_bedroom",
+"home/tv_unit",
+"home/passage/lamp",
+"home/child_bedroom/fan_light_switch"
+];
+
+const names=[
+"Living Room Fan/Lamp/Light",
+"Child Bedroom Socket/Lamp",
+"Spare Connection",
+"Kitchen Lamp/Dry/Fridge",
+"Master Bedroom Fan/Lamp",
+"TV Unit",
+"Passage Area Lamp",
+"Child Bedroom Fan/Light/Switch"
+];
+
+let states = {};
+let client;
+const DEFAULT_CAMERA_URL = "http://192.168.1.6:81/stream";
+let savedCamUrl = localStorage.getItem("hajareCamUrl");
+
+function box(i){
+ let div=document.createElement("div");
+ div.className="device";
+ div.innerHTML=`<span>${i+1}. ${names[i]} <b id="s${i}">OFF</b></span>
+ <button id="b${i}" class="off" onclick="toggle(${i})">OFF</button>`;
+ return div;
+}
+
+function build(){
+ for(let i=0;i<3;i++) living.appendChild(box(i));
+ for(let i=3;i<5;i++) kitchen.appendChild(box(i));
+ for(let i=5;i<8;i++) bath.appendChild(box(i));
+ for(let i=0;i<8;i++) states[i]="OFF";
+ camUrl.value = getInitialCameraUrl();
+ localStorage.setItem("hajareCamUrl", camUrl.value);
+ connectMQTT();
+}
+
+function setUI(i,state){
+ state = state.toUpperCase();
+ states[i]=state;
+
+ document.getElementById("s"+i).innerText=state;
+
+ let b=document.getElementById("b"+i);
+ b.innerText=state;
+ b.className=state=="ON" ? "on" : "off";
+}
+
+function toggle(i){
+ let next = states[i]=="ON" ? "OFF" : "ON";
+ client.publish(topics[i] + "/set", next, {retain:true});
+}
+
+function allRelay(cmd){
+ for(let i=0;i<8;i++){
+   client.publish(topics[i] + "/set", cmd, {retain:true});
+ }
+}
+
+function getCameraUrl(){
+ let url = camUrl.value.trim();
+ if(!url) url = DEFAULT_CAMERA_URL;
+ if(!/^https?:\/\//i.test(url)) url = "http://" + url;
+ camUrl.value = url;
+ localStorage.setItem("hajareCamUrl", url);
+ return url;
+}
+
+function getInitialCameraUrl(){
+ if(!savedCamUrl) return DEFAULT_CAMERA_URL;
+
+ try {
+   let parsed = new URL(savedCamUrl);
+   if(parsed.hostname === "10.225.218.158") return DEFAULT_CAMERA_URL;
+   if(parsed.hostname === "192.168.1.9") return DEFAULT_CAMERA_URL;
+   return savedCamUrl;
+ } catch(e) {
+   return DEFAULT_CAMERA_URL;
+ }
+}
+
+function loadCamera(){
+ let url = getCameraUrl();
+ if(url) camView.src = url;
+}
+
+function openCamera(){
+ let url = getCameraUrl();
+ if(url) window.open(url, "_blank");
+}
+
+function stopCamera(){
+ camView.removeAttribute("src");
+}
+
+function connectMQTT(){
+ client = mqtt.connect(MQTT_HOST, {
+   username: MQTT_USER,
+   password: MQTT_PASS,
+   clientId: "HAJARE_WEB_" + Math.random().toString(16).substr(2,8),
+   clean: true,
+   reconnectPeriod: 3000
+ });
+
+ client.on("connect", function(){
+   document.getElementById("sys").innerText = "MQTT: CONNECTED | GLOBAL CONTROL ACTIVE";
+
+   for(let i=0;i<8;i++){
+     client.subscribe(topics[i] + "/status");
+     client.subscribe(topics[i] + "/set");
+   }
+ });
+
+ client.on("reconnect", function(){
+   document.getElementById("sys").innerText = "MQTT: Reconnecting...";
+ });
+
+ client.on("offline", function(){
+   document.getElementById("sys").innerText = "MQTT: Offline";
+ });
+
+ client.on("error", function(){
+   document.getElementById("sys").innerText = "MQTT: Error";
+ });
+
+ client.on("message", function(topic, message){
+   let msg = message.toString().trim().toUpperCase();
+
+   let base = topic.replace("/status","").replace("/set","");
+   let i = topics.indexOf(base);
+
+   if(i >= 0){
+     setUI(i,msg);
+   }
+ });
+}
+
+build();
+</script>
+
+</body>
+</html>
