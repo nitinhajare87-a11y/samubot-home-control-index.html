@@ -130,6 +130,7 @@ const names=[
 let states = {};
 let client;
 const DEFAULT_CAMERA_URL = "http://192.168.1.6:81/stream";
+const FRIDGE_RELAY = 3;
 let savedCamUrl = localStorage.getItem("hajareCamUrl");
 
 function box(i){
@@ -181,7 +182,7 @@ function relayCmd(i, cmd){
 
 function sceneEvening(){
  relayCmd(0, "ON");
- relayCmd(3, "ON");
+ relayCmd(FRIDGE_RELAY, "ON");
  relayCmd(6, "ON");
  relayCmd(5, "ON");
  lastAction.innerText = "EVENING";
@@ -189,11 +190,15 @@ function sceneEvening(){
 
 function sceneNight(){
  allRelay("OFF");
- setTimeout(function(){ relayCmd(6, "ON"); }, 350);
+ setTimeout(function(){
+   relayCmd(FRIDGE_RELAY, "ON");
+   relayCmd(6, "ON");
+ }, 350);
  lastAction.innerText = "NIGHT";
 }
 
 function sceneChildStudy(){
+ relayCmd(FRIDGE_RELAY, "ON");
  relayCmd(1, "ON");
  relayCmd(7, "ON");
  relayCmd(6, "ON");
@@ -202,6 +207,7 @@ function sceneChildStudy(){
 
 function sceneAway(){
  allRelay("OFF");
+ setTimeout(function(){ relayCmd(FRIDGE_RELAY, "ON"); }, 350);
  lastAction.innerText = "AWAY";
 }
 
