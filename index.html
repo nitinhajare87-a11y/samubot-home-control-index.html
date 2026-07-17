@@ -158,8 +158,6 @@ function setUI(i,state){
 
  let b=document.getElementById("b"+i);
  b.innerText=state;
- let b=document.getElementById("b"+i);
- b.innerText=state;
  b.className=state=="ON" ? "on" : "off";
  updateFeedback();
 }
@@ -261,10 +259,9 @@ function stopCamera(){
 }
 
 function connectMQTT(){
- const MQTT_HOST = "wss://431f345fb6a84bfa856a4d34568a46aa.s1.eu.hivemq.cloud:8884/mqtt";
-const MQTT_USER = "nhajare1987";
-const MQTT_PASS = "Army@7387";
-
+ client = mqtt.connect(MQTT_HOST, {
+   username: MQTT_USER,
+   password: MQTT_PASS,
    clientId: "HAJARE_WEB_" + Math.random().toString(16).substr(2,8),
    clean: true,
    reconnectPeriod: 3000
